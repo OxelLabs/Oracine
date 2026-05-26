@@ -1,6 +1,6 @@
 {
   "name": "oracine-v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Oracine Media API by Oracron, built by Jaden Afrix",
   "author": "Jaden Afrix / Oracron",
   "license": "MIT",
@@ -19,12 +19,12 @@
   },
   "dependencies": {
     "@consumet/extensions": "1.8.8",
-    "@hono/node-server": "^1.13.7",
-    "hono": "^4.6.14"
+    "@hono/node-server": "^1.18.2",
+    "hono": "^4.12.23"
   },
   "devDependencies": {
-    "@types/node": "^20.17.10",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3"
   }
 }

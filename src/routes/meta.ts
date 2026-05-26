@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { metaProviders } from '../providers/registry.js'
-import { ok, fail, normalizeStream } from '../utils/response.js'
-import { withTimeout } from '../utils/fallback.js'
+import { metaProviders, movieProviders } from '../providers/registry.js'
+import { ok, fail, normalizeStream, publicBaseFromRequest } from '../utils/response.js'
+import { withTimeout, tryAllSources } from '../utils/fallback.js'
 import { cached } from '../utils/cache.js'
 
 const router = new Hono()
@@ -49,10 +49,54 @@ router.get('/tmdb/trending', async (c) => {
 router.get('/tmdb/stream', async (c) => {
   const id = c.req.query('id')
   const quality = c.req.query('quality') ?? undefined
+  const base = publicBaseFromRequest(c.req.raw)
   if (!id) return c.json(fail('id is required'), 400)
   try {
-    const data = await withTimeout((metaProviders.tmdb as any).fetchEpisodeSources(id), 30000, 'tmdb')
-    return c.json(ok(normalizeStream(data, quality), { source: 'tmdb' }))
+    const result = await cached(`tmdb:stream:${id}:${quality ?? 'any'}`, 120, () =>
+      tryAllSources([
+        {
+          name: 'flixhq',
+          run: () => {
+            const p = new (metaProviders.tmdb.constructor as any)(
+              (metaProviders.tmdb as any).apiKey,
+              movieProviders.flixhq,
+            )
+            return withTimeout(p.fetchEpisodeSources(id), 12000, 'flixhq')
+          },
+        },
+        {
+          name: 'goku',
+          run: () => {
+            const p = new (metaProviders.tmdb.constructor as any)(
+              (metaProviders.tmdb as any).apiKey,
+              movieProviders.goku,
+            )
+            return withTimeout(p.fetchEpisodeSources(id), 12000, 'goku')
+          },
+        },
+        {
+          name: 'sflix',
+          run: () => {
+            const p = new (metaProviders.tmdb.constructor as any)(
+              (metaProviders.tmdb as any).apiKey,
+              movieProviders.sflix,
+            )
+            return withTimeout(p.fetchEpisodeSources(id), 12000, 'sflix')
+          },
+        },
+        {
+          name: 'himovies',
+          run: () => {
+            const p = new (metaProviders.tmdb.constructor as any)(
+              (metaProviders.tmdb as any).apiKey,
+              movieProviders.himovies,
+            )
+            return withTimeout(p.fetchEpisodeSources(id), 12000, 'himovies')
+          },
+        },
+      ]),
+    )
+    return c.json(ok(normalizeStream(result.data, quality, base), { source: result.source }))
   } catch (err: any) {
     return c.json(fail(err.message ?? 'tmdb stream failed', 502), 502)
   }
@@ -61,11 +105,12 @@ router.get('/tmdb/stream', async (c) => {
 router.get('/tmdb/download', async (c) => {
   const id = c.req.query('id')
   const quality = c.req.query('quality') ?? '720p'
+  const base = publicBaseFromRequest(c.req.raw)
   if (!id) return c.json(fail('id is required'), 400)
   try {
     const data = await withTimeout((metaProviders.tmdb as any).fetchEpisodeSources(id), 30000, 'tmdb')
-    const stream = normalizeStream(data, quality)
-    return c.json(ok({ url: stream.download, headers: stream.headers, quality }, { source: 'tmdb' }))
+    const stream = normalizeStream(data, quality, base)
+    return c.json(ok({ url: stream.download, play: stream.play, headers: stream.headers, quality }, { source: 'tmdb' }))
   } catch (err: any) {
     return c.json(fail(err.message ?? 'tmdb download failed', 502), 502)
   }

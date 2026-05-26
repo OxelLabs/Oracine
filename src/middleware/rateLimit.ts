@@ -1,12 +1,21 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import { RUNTIME } from '../config/constants.js'
 
-type Bucket = { count: number; reset: number }
-const buckets = new Map<string, Bucket>()
+type Bucket = { count: number;reset: number }
+const buckets = new Map < string,
+  Bucket > ()
+
+const SKIP_PATHS = new Set(['/', '/health', '/favicon.ico', '/robots.txt'])
 
 export function rateLimit(): MiddlewareHandler {
   return async (c: Context, next) => {
+    const method = c.req.method
+    if (method === 'OPTIONS' || method === 'HEAD') return next()
+    const path = new URL(c.req.url).pathname
+    if (SKIP_PATHS.has(path) || path.startsWith('/health')) return next()
+    
     const ip =
+      c.req.header('cf-connecting-ip') ??
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
       c.req.header('x-real-ip') ??
       'anon'
@@ -29,7 +38,11 @@ export function rateLimit(): MiddlewareHandler {
         )
       }
     }
-    if (buckets.size > 10000) buckets.clear()
+    if (buckets.size > 10000) {
+      for (const [key, bucket] of buckets) {
+        if (now > bucket.reset) buckets.delete(key)
+      }
+    }
     await next()
   }
 }

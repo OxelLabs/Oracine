@@ -16,7 +16,7 @@ router.get('/novels/search', async (c) => {
   try {
     const data = await withTimeout(
       (novelProviders.novelupdates as any).search(q),
-      20000,
+      15000,
       'novelupdates',
     )
     return c.json(ok(data, { source: 'novelupdates' }))
@@ -33,7 +33,7 @@ router.get('/novels/info', async (c) => {
   try {
     const provider = pickNovel(source) as any
     const data = await cached(`novel:info:${source}:${id}:${chapterPage ?? 0}`, 600, () =>
-      withTimeout(provider.fetchLightNovelInfo(id, chapterPage), 25000, source),
+      withTimeout(provider.fetchLightNovelInfo(id, chapterPage), 15000, source),
     )
     return c.json(ok(data, { source: provider.name }))
   } catch (err: any) {
@@ -47,10 +47,8 @@ router.get('/novels/read', async (c) => {
   if (!chapterId) return c.json(fail('chapterId is required'), 400)
   try {
     const provider = pickNovel(source) as any
-    const data = await withTimeout(
-      provider.fetchChapterContent(chapterId),
-      25000,
-      source,
+    const data = await cached(`novel:read:${source}:${chapterId}`, 300, () =>
+      withTimeout(provider.fetchChapterContent(chapterId), 15000, source),
     )
     return c.json(ok(data, { source: provider.name }))
   } catch (err: any) {
@@ -65,7 +63,7 @@ router.get('/comics/search', async (c) => {
   try {
     const data = await withTimeout(
       (comicProviders.getcomics as any).search(q, page),
-      20000,
+      15000,
       'getcomics',
     )
     return c.json(ok(data, { source: 'getcomics' }))

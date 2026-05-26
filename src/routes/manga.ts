@@ -20,7 +20,7 @@ router.get('/search', async (c) => {
   try {
     if (source) {
       const provider = pickManga(source) as any
-      const data = await withTimeout(provider.search(q, page), 20000, source)
+      const data = await withTimeout(provider.search(q, page), 15000, source)
       return c.json(ok(data, { source: provider.name }))
     }
     const result = await tryAllSources(
@@ -52,16 +52,23 @@ router.get('/info', async (c) => {
 
 router.get('/read', async (c) => {
   const chapterId = c.req.query('chapterId')
-  const source = c.req.query('source') ?? 'mangadex'
+  const source = c.req.query('source')
   if (!chapterId) return c.json(fail('chapterId is required'), 400)
   try {
-    const provider = pickManga(source)
-    const data = await withTimeout(
-      provider.fetchChapterPages(chapterId) as Promise<any>,
-      25000,
-      source,
+    if (source) {
+      const provider = pickManga(source)
+      const data = await withTimeout(provider.fetchChapterPages(chapterId) as Promise<any>, 12000, source)
+      return c.json(ok(data, { source: provider.name }))
+    }
+    const result = await cached(`manga:read:${chapterId}`, 300, () =>
+      tryAllSources(
+        PRIMARY_ORDER.map(name => ({
+          name,
+          run: () => withTimeout((mangaProviders[name] as any).fetchChapterPages(chapterId), 12000, name),
+        })),
+      ),
     )
-    return c.json(ok(data, { source: provider.name }))
+    return c.json(ok(result.data, { source: result.source }))
   } catch (err: any) {
     return c.json(fail(err.message ?? 'read failed', 502), 502)
   }
